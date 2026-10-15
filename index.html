@@ -3,6 +3,19 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="AvansMotor">
+<meta name="theme-color" content="#C6002A">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<style>
+/* Als app op het beginscherm: inkeping en ronde hoeken van de iPhone vrijhouden */
+.hud { padding-top: max(14px, env(safe-area-inset-top, 0px)); }
+.laag { padding-top: max(32px, env(safe-area-inset-top, 0px)); padding-bottom: max(32px, env(safe-area-inset-bottom, 0px)); }
+</style>
 <title>AvansMotor</title>
 <style>
 @font-face {
@@ -1865,6 +1878,12 @@ p { margin: 0; font-size: 1.05rem; line-height: 1.5; max-width: 26rem; }
   }
   init();
 })();
+</script>
+
+<script>
+if ('serviceWorker' in navigator && location.protocol === 'https:') {
+  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+}
 </script>
 
 </body>

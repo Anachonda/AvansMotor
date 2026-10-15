@@ -1,0 +1,16 @@
+{
+  "name": "AvansMotor",
+  "short_name": "AvansMotor",
+  "description": "Springspel in de huisstijl van Avans Hogeschool.",
+  "lang": "nl",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#C6002A",
+  "theme_color": "#C6002A",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
