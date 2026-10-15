@@ -1,6 +1,6 @@
 // AvansMotor: zorgt dat het spel ook zonder internet werkt.
 // Online haalt hij altijd de nieuwste versie op; offline speelt hij de laatst bewaarde.
-const CACHE = 'avansmotor-v1';
+const CACHE = 'avansmotor-v2';
 const BESTANDEN = ['./', './index.html', './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
