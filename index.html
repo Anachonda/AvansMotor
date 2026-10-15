@@ -609,8 +609,12 @@ p { margin: 0; font-size: 1.05rem; line-height: 1.5; max-width: 26rem; }
     if (basis === undefined) basis = Math.random() < 0.5 ? G - U * 0.15 : G - U * 0.05;
     const m = afgelegd ? meters() : 0;
     const poeper = m > 100 && Math.random() < Math.min(0.5, 0.25 + m / 3000);
-    return { x: x === undefined ? W + U * 0.12 : x, y: basis, basis, v: v || U * (0.22 + Math.random() * 0.12), fase: Math.random() * 6, dood: false,
-             poeper, gepoept: false, knijp: 0, doel: U * (0.1 + Math.random() * 0.3) };
+    // Een poepende gans treuzelt: hij vliegt langzamer, zodat je tijd hebt om te schieten.
+    // De helft mikt op je helm, de andere helft laat een plas vóór je op de weg vallen.
+    const helm = Math.random() < 0.5;
+    const snelheidGans = v || (poeper ? U * (0.04 + Math.random() * 0.04) : U * (0.22 + Math.random() * 0.12));
+    return { x: x === undefined ? W + U * 0.12 : x, y: basis, basis, v: snelheidGans, fase: Math.random() * 6, dood: false,
+             poeper, gepoept: false, knijp: 0, helm, doel: helm ? U * 0.0 : U * (0.15 + Math.random() * 0.3) };
   }
   function maakFormatie() {
     const x = W + U * 0.12, v = U * (0.22 + Math.random() * 0.08);
@@ -867,10 +871,10 @@ p { margin: 0; font-size: 1.05rem; line-height: 1.5; max-width: 26rem; }
       if (e.poeper && !e.gepoept && !e.dood) {
         const vx = snelheid + e.v, tVal = Math.sqrt(2 * Math.max(0, G - e.y) / (POEP_VAL * U));
         const loslaten = W * 0.22 + e.doel + vx * tVal;
-        if (e.knijp <= 0 && e.x <= loslaten + vx * 0.5) { e.knijp = 0.5; pruttel(); }
-        if (e.knijp > 0) e.knijp -= dt;
+        // Knijpen vanaf het moment dat hij in beeld komt: dat is je waarschuwing
+        if (e.knijp <= 0 && e.x < W - U * 0.02) { e.knijp = 1; pruttel(); }
         if (e.x <= loslaten) {
-          e.gepoept = true; e.knijp = 0;
+          e.gepoept = true; e.knijp = 0; pruttel();
           klodders.push({ x: e.x + U * 0.03, y: e.y + U * 0.012, vx, vy: 0 });
         }
       }
