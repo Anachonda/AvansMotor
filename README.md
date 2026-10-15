@@ -14,6 +14,7 @@ Open `index.html` in een browser. Het spel is één bestand: lettertypes, logo, 
 - Elke meter is een punt. Een geraakte gans geeft 25 punten en een torpedo terug.
 - Je begint met 3 levens (maximaal 5) en 10 torpedo's (maximaal 20).
 - Raak je een Avans praalgans, dan kost dat een leven.
+- Een gans die knijpt, gaat poepen. Een plas maakt de weg 1 seconde glad (niet springen), een klodder op je helm maakt je even half blind.
 - Drie keer hetzelfde fruit is een extra leven.
 - Elke 250 meter wisselt de fase: dag, nacht, ochtend.
 

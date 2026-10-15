@@ -236,7 +236,7 @@ p { margin: 0; font-size: 1.05rem; line-height: 1.5; max-width: 26rem; }
         <p>Elke meter is een punt. Een geraakte gans geeft 25 punten en een torpedo terug.</p>
         <p>Je hebt 3 levens en 10 torpedo's. <strong>Spring</strong> over obstakels en <strong>schiet</strong> ganzen weg. Houd Spring vast om hoger te springen.</p>
         <p>Pak tegels voor een schild, munitie of een dubbele sprong. Pak of schiet bellen met fruit: 3 keer hetzelfde fruit is een extra leven.</p>
-        <p><strong>Schiet nooit op een Avans praalgans.</strong> Dat kost een leven.</p>
+        <p>Een gans die knijpt, gaat poepen: schiet hem neer of spring over de plas. <strong>Schiet nooit op een Avans praalgans.</strong> Dat kost een leven.</p>
       </div>
       <p class="record" id="recordStart" hidden></p>
       <button class="knop" id="startKnop" type="button">Start de motor</button>
@@ -400,6 +400,46 @@ p { margin: 0; font-size: 1.05rem; line-height: 1.5; max-width: 26rem; }
     ruisStoot(0.3, 1800, 200, 0.55 * sterkte);
     toon('sine', 95, 45, 0.22, 0.7 * sterkte);
   }
+  // Poepgeluiden, gemaakt met Web Audio
+  function pruttel() {
+    if (!ac) return;
+    const t0 = ac.currentTime, d = 0.45;
+    const osc = ac.createOscillator(); osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(125, t0); osc.frequency.exponentialRampToValueAtTime(62, t0 + d);
+    const f = ac.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 650;
+    const g = gainNaar(0, effectGain);
+    g.gain.setValueAtTime(0.3, t0); g.gain.linearRampToValueAtTime(0.0001, t0 + d);
+    const lfo = ac.createOscillator(); lfo.type = 'square'; lfo.frequency.setValueAtTime(32, t0); lfo.frequency.linearRampToValueAtTime(18, t0 + d);
+    const diepte = ac.createGain(); diepte.gain.value = 0.26;
+    lfo.connect(diepte); diepte.connect(g.gain);
+    osc.connect(f); f.connect(g);
+    osc.start(t0); lfo.start(t0); osc.stop(t0 + d + 0.05); lfo.stop(t0 + d + 0.05);
+  }
+  function plets() {
+    if (!ac) return;
+    ruisStoot(0.16, 1100, 180, 0.45);
+    toon('sine', 220, 60, 0.12, 0.5);
+  }
+  function splat() {
+    if (!ac) return;
+    const t0 = ac.currentTime, bron = ac.createBufferSource(); bron.buffer = ruis;
+    const f = ac.createBiquadFilter(); f.type = 'bandpass'; f.frequency.setValueAtTime(1600, t0); f.frequency.exponentialRampToValueAtTime(400, t0 + 0.3); f.Q.value = 1.2;
+    const g = gainNaar(0.9, effectGain); g.gain.setValueAtTime(0.9, t0); g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.35);
+    bron.connect(f); f.connect(g); bron.start(t0); bron.stop(t0 + 0.4);
+    toon('sine', 320, 70, 0.2, 0.6);
+  }
+  function slip() {
+    if (!ac) return;
+    const t0 = ac.currentTime, d = 0.55;
+    const osc = ac.createOscillator(); osc.type = 'square';
+    osc.frequency.setValueAtTime(1500, t0); osc.frequency.linearRampToValueAtTime(1150, t0 + d);
+    const vib = ac.createOscillator(); vib.frequency.value = 22; const vd = ac.createGain(); vd.gain.value = 60;
+    vib.connect(vd); vd.connect(osc.frequency);
+    const f = ac.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 1400; f.Q.value = 6;
+    const g = gainNaar(0.18, effectGain); g.gain.setValueAtTime(0.18, t0); g.gain.exponentialRampToValueAtTime(0.001, t0 + d);
+    osc.connect(f); f.connect(g); osc.start(t0); vib.start(t0); osc.stop(t0 + d + 0.05); vib.stop(t0 + d + 0.05);
+  }
+
   function klik() {
     if (!ac) return;
     toon('square', 1400, 900, 0.035, 0.15);
@@ -466,6 +506,8 @@ p { margin: 0; font-size: 1.05rem; line-height: 1.5; max-width: 26rem; }
   let tijd, afgelegd, snelheid, motor, obstakels, decor, deeltjes, volgende, ingedrukt, buffer, schok, wielhoek, crashTijd;
   let eenden, kogels, eendTimer, herlaad, flits, geschoten, ontploffingen;
   let munitie, leegTijd, kippen, kipTimer;
+  let klodders, plassen, spetter, glad;
+  const POEP_VAL = 2.5;   // valversnelling van een klodder, in U per s²
   const START_MUNITIE = 10, MAX_MUNITIE = 20;
   let ver, voor, verVolg, voorVolg, vorigeSoort;
   let hapjes, hapjeTimer, mand, volgendeExtra, mandPos;
@@ -480,7 +522,8 @@ p { margin: 0; font-size: 1.05rem; line-height: 1.5; max-width: 26rem; }
     ingedrukt = false; buffer = 0;
     eenden = []; kogels = []; eendTimer = 3.5; herlaad = 0; flits = 0; geschoten = 0; ontploffingen = [];
     bonus = 0; reeks = 0; krachten = []; krachtTimer = 5;
-    munitie = START_MUNITIE; leegTijd = 0; kippen = []; kipTimer = 9; schild = false; snelTijd = 0; dubbelTijd = 0;
+    munitie = START_MUNITIE; leegTijd = 0; kippen = []; kipTimer = 9;
+    klodders = []; plassen = []; spetter = null; glad = 0; schild = false; snelTijd = 0; dubbelTijd = 0;
     luchtSprong = false; onkwetsbaar = 0; teksten = []; fase = 0; bannerTijd = 0; levens = 3;
     hapjes = []; hapjeTimer = 6; mand = { kers: 0, appel: 0, mandarijn: 0 }; volgendeExtra = 400;
     for (let x = W * 0.2; x < W * 2.2; x += U * (0.55 + Math.random() * 0.5)) decor.push(maakDecor(x));
@@ -551,13 +594,17 @@ p { margin: 0; font-size: 1.05rem; line-height: 1.5; max-width: 26rem; }
 
   function maakEend(x, basis, v) {
     if (basis === undefined) basis = Math.random() < 0.5 ? G - U * 0.15 : G - U * 0.05;
-    return { x: x === undefined ? W + U * 0.12 : x, y: basis, basis, v: v || U * (0.22 + Math.random() * 0.12), fase: Math.random() * 6, dood: false };
+    const m = afgelegd ? meters() : 0;
+    const poeper = m > 100 && Math.random() < Math.min(0.5, 0.25 + m / 3000);
+    return { x: x === undefined ? W + U * 0.12 : x, y: basis, basis, v: v || U * (0.22 + Math.random() * 0.12), fase: Math.random() * 6, dood: false,
+             poeper, gepoept: false, knijp: 0, doel: U * (0.1 + Math.random() * 0.3) };
   }
   function maakFormatie() {
     const x = W + U * 0.12, v = U * (0.22 + Math.random() * 0.08);
     eenden.push(maakEend(x, G - U * 0.10, v));
     eenden.push(maakEend(x + U * 0.08, G - U * 0.055, v));
     eenden.push(maakEend(x + U * 0.08, G - U * 0.145, v));
+    eenden[eenden.length - 1].poeper = false; eenden[eenden.length - 2].poeper = false;   // alleen de voorste gans kan poepen
   }
 
   const KRACHTEN = ['schild', 'munitie', 'dubbel'];
@@ -575,6 +622,7 @@ p { margin: 0; font-size: 1.05rem; line-height: 1.5; max-width: 26rem; }
   }
   function los() { ingedrukt = false; }
   function spring() {
+    if (glad > 0 && motor.opGrond) { if (leegTijd <= 0) { tekst(W * 0.22, motor.y - U * 0.17, 'Glad!'); leegTijd = 0.6; } return; }
     motor.vy = -1.25 * U; motor.opGrond = false; buffer = 0;
     speel('spring', 0.7);
     if (motor.y >= G - 1) for (let i = 0; i < 5; i++) stof(0.5);
@@ -802,7 +850,44 @@ p { margin: 0; font-size: 1.05rem; line-height: 1.5; max-width: 26rem; }
     }
     for (const e of eenden) {
       e.x -= dx + e.v * dt; e.fase += dt * 14; e.y = e.basis + Math.sin(e.fase * 0.25) * U * 0.008;
+      // Een poepende gans knijpt eerst een halve seconde, dan valt de klodder
+      if (e.poeper && !e.gepoept && !e.dood) {
+        const vx = snelheid + e.v, tVal = Math.sqrt(2 * Math.max(0, G - e.y) / (POEP_VAL * U));
+        const loslaten = W * 0.22 + e.doel + vx * tVal;
+        if (e.knijp <= 0 && e.x <= loslaten + vx * 0.5) { e.knijp = 0.5; pruttel(); }
+        if (e.knijp > 0) e.knijp -= dt;
+        if (e.x <= loslaten) {
+          e.gepoept = true; e.knijp = 0;
+          klodders.push({ x: e.x + U * 0.03, y: e.y + U * 0.012, vx, vy: 0 });
+        }
+      }
     }
+
+    // Klodders vallen; op de weg worden het plassen, op de motor een spetter
+    for (const k of klodders) {
+      k.vy += POEP_VAL * U * dt; k.y += k.vy * dt; k.x -= k.vx * dt;
+      const r = U * 0.008;
+      if (raakt(motorVak(), vak(k.x - r, k.y - r, k.x + r, k.y + r))) {
+        k.weg = true; maakSpetter(); splat();
+        tekst(W * 0.22, motor.y - U * 0.17, 'Splat!');
+      } else if (k.y >= G) {
+        k.weg = true;
+        if (!obstakels.some(o => o.soort === 'gat' && k.x > o.x && k.x < o.x + o.w)) { plassen.push({ x: k.x, w: U * 0.06, geraakt: false }); plets(); }
+      }
+    }
+    klodders = klodders.filter(k => !k.weg && k.x > -U * 0.1);
+    for (const pl of plassen) {
+      pl.x -= dx;
+      const bx = W * 0.22;
+      if (!pl.geraakt && motor.opGrond && pl.x + pl.w / 2 > bx - U * 0.045 && pl.x - pl.w / 2 < bx + U * 0.05) {
+        pl.geraakt = true; glad = 1.0; slip();
+        tekst(bx, motor.y - U * 0.17, 'Glad!'); leegTijd = 1.0;
+        for (let i = 0; i < 8; i++) deeltjes.push({ x: pl.x, y: G - 2, vx: -U * Math.random() * 0.4, vy: -U * Math.random() * 0.3, r: U * (0.003 + Math.random() * 0.004), leven: 0.4, t: 0, kleur: KLEUR.wit });
+      }
+    }
+    plassen = plassen.filter(pl => pl.x > -U * 0.2);
+    if (glad > 0) { glad -= dt; if (motor.opGrond) motor.hoek = Math.sin(tijd * 30) * 0.15 * Math.min(1, glad * 2); }
+    if (spetter) { spetter.t += dt; if (spetter.t > spetter.leven) spetter = null; }
 
     // Praalkippen: vliegen voorbij en doen niks, maar je mag ze niet raken
     kipTimer -= dt;
@@ -932,6 +1017,18 @@ p { margin: 0; font-size: 1.05rem; line-height: 1.5; max-width: 26rem; }
     else { bonus += 100; tekst(x, y - U * 0.06, '+100'); }
   }
 
+  function maakSpetter() {
+    const cx = W * 0.22 + U * (0.16 + Math.random() * 0.12), cy = G - U * (0.07 + Math.random() * 0.08);
+    const vlekken = [{ x: cx, y: cy, r: U * 0.085 }];
+    for (let i = 0; i < 8; i++) {
+      const a = Math.random() * Math.PI * 2, d = U * (0.06 + Math.random() * 0.1);
+      vlekken.push({ x: cx + Math.cos(a) * d, y: cy + Math.sin(a) * d * 0.8, r: U * (0.012 + Math.random() * 0.035) });
+    }
+    const druppels = [];
+    for (let i = 0; i < 5; i++) druppels.push({ x: cx + (Math.random() - 0.5) * U * 0.12, y: cy + U * 0.03, r: U * (0.008 + Math.random() * 0.006), snel: U * (0.03 + Math.random() * 0.05) });
+    spetter = { t: 0, leven: 2.8, vlekken, druppels };
+  }
+
   function verenKip(x, y) {
     const kleuren = [KLEUR.rood, KLEUR.helder, KLEUR.oranje, KLEUR.paars, KLEUR.blauw, KLEUR.navy];
     for (let i = 0; i < 18; i++) {
@@ -1051,10 +1148,40 @@ p { margin: 0; font-size: 1.05rem; line-height: 1.5; max-width: 26rem; }
       ctx.fill(avatile(o.x - kw * 0.45, G - kh, kw, kh).pad);
     }
 
+    // Plassen ganzenpoep op de weg
+    for (const pl of (plassen || [])) {
+      ctx.fillStyle = KLEUR.paars;
+      ctx.beginPath(); ctx.ellipse(pl.x + U * 0.004, G + U * 0.004, pl.w / 2, U * 0.007, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = KLEUR.wit; ctx.strokeStyle = KLEUR.navy; ctx.lineWidth = Math.max(1, U * 0.0025);
+      ctx.beginPath();
+      ctx.ellipse(pl.x, G, pl.w / 2, U * 0.007, 0, 0, Math.PI * 2);
+      ctx.ellipse(pl.x - pl.w * 0.15, G - U * 0.006, pl.w * 0.18, U * 0.006, 0, 0, Math.PI * 2);
+      ctx.fill(); ctx.stroke();
+      ctx.fillStyle = KLEUR.navy;
+      ctx.beginPath(); ctx.arc(pl.x + pl.w * 0.15, G - U * 0.001, U * 0.0025, 0, Math.PI * 2); ctx.fill();
+    }
+
     for (const k of (krachten || [])) tekenKracht(k, P);
     for (const h of (hapjes || [])) tekenHapje(h, P);
     for (const e of (eenden || [])) tekenEend(e, P);
     for (const c of (kippen || [])) tekenKip(c);
+    // Vallende klodders
+    for (const k of (klodders || [])) {
+      const r = U * 0.008;
+      ctx.fillStyle = KLEUR.wit; ctx.strokeStyle = KLEUR.navy; ctx.lineWidth = Math.max(1, U * 0.0025);
+      ctx.beginPath(); ctx.moveTo(k.x, k.y - r * 1.8);
+      ctx.quadraticCurveTo(k.x + r * 1.1, k.y - r * 0.2, k.x, k.y + r);
+      ctx.quadraticCurveTo(k.x - r * 1.1, k.y - r * 0.2, k.x, k.y - r * 1.8);
+      ctx.fill(); ctx.stroke();
+    }
+    // Waar de klodder gaat landen: schaduwvlekje op de weg
+    for (const k of (klodders || [])) {
+      const tRest = Math.max(0, (Math.sqrt(k.vy * k.vy + 2 * POEP_VAL * U * Math.max(0, G - k.y)) - k.vy) / (POEP_VAL * U));
+      const lx = k.x - k.vx * tRest;
+      ctx.fillStyle = KLEUR.paars; ctx.globalAlpha = 0.9;
+      ctx.beginPath(); ctx.ellipse(lx, G + U * 0.002, U * 0.014, U * 0.004, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1;
+    }
     for (const k of (kogels || [])) tekenTorpedo(k.x, k.y);
 
     // Ontploffingen
@@ -1122,6 +1249,29 @@ p { margin: 0; font-size: 1.05rem; line-height: 1.5; max-width: 26rem; }
 
     // Voorgrond: vangrail, hek, bosjes, borden
     if (voor) tekenVoorgrond();
+
+    // Spetter ganzenpoep op het scherm: even half blind, daarna krimpt hij weg
+    if (spetter) {
+      const s = spetter, k = Math.min(1, (s.leven - s.t) / 0.7), c = s.vlekken[0];
+      const rand = Math.max(1.5, U * 0.003);
+      const druppelY = d => d.y + Math.min(U * 0.09, d.snel * s.t);
+      ctx.save();
+      ctx.translate(c.x, c.y); ctx.scale(k, k); ctx.translate(-c.x, -c.y);
+      for (const [kleur, extra] of [[KLEUR.navy, rand], [KLEUR.wit, 0]]) {
+        ctx.fillStyle = kleur;
+        ctx.beginPath();
+        for (const v of s.vlekken) { ctx.moveTo(v.x + v.r + extra, v.y); ctx.arc(v.x, v.y, v.r + extra, 0, Math.PI * 2); }
+        for (const d of s.druppels) {
+          const y = druppelY(d);
+          ctx.rect(d.x - d.r - extra, d.y, (d.r + extra) * 2, y - d.y);
+          ctx.moveTo(d.x + d.r + extra, y); ctx.arc(d.x, y, d.r + extra, 0, Math.PI * 2);
+        }
+        ctx.fill('nonzero');
+      }
+      ctx.fillStyle = KLEUR.paars;
+      for (const v of s.vlekken.slice(0, 4)) { ctx.beginPath(); ctx.arc(v.x - v.r * 0.3, v.y - v.r * 0.3, v.r * 0.25, 0, Math.PI * 2); ctx.fill(); }
+      ctx.restore();
+    }
 
     // Zwevende teksten (punten, krachten)
     ctx.font = `italic 800 ${Math.round(U * 0.06)}px 'Sofia Sans Extra Condensed', 'Arial Narrow', sans-serif`;
@@ -1528,6 +1678,7 @@ p { margin: 0; font-size: 1.05rem; line-height: 1.5; max-width: 26rem; }
   function tekenEend(e, P) {
     const u = U, lw = Math.max(1.2, u * 0.0025), klap = Math.sin(e.fase);
     ctx.save(); ctx.translate(e.x, e.y);
+    if (e.knijp > 0) { const tril = Math.sin((tijd || 0) * 70) * 0.05; ctx.translate(Math.sin((tijd || 0) * 90) * u * 0.002, 0); ctx.scale(1.14 + tril, 0.84 - tril); }
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     ctx.strokeStyle = KLEUR.navy; ctx.lineWidth = lw;
     // Grote oranje zwemvoeten die bungelen
