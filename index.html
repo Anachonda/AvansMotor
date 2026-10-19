@@ -81,6 +81,12 @@ h1, h2, .banner-titel, .spelnaam { text-transform: uppercase; }
 .spelnaam { font-family: var(--titel); font-style: italic; font-weight: 800; font-size: clamp(1.5rem, 4.2vw, 2.4rem); line-height: .86; margin-bottom: 2px; }
 .munitieregel { display: flex; align-items: baseline; justify-content: center; gap: 6px; }
 .munitieregel .getal { font-size: 1.9rem; }
+/* eigen keuze: balkje van de springveer, leunt 11° mee zoals de avatile */
+.veerbalk { width: 6.5rem; height: 8px; margin: 5px auto 0; transform: skewX(-11deg); background: color-mix(in srgb, currentColor 30%, transparent); }
+.veerbalk span { display: block; height: 100%; width: 100%; background: var(--blauw); transform-origin: left; }
+.veerbalk.knipper { animation: knipper .3s steps(2, jump-none) infinite; }
+@keyframes knipper { 50% { opacity: .2; } }
+@media (prefers-reduced-motion: reduce) { .veerbalk.knipper { animation: none; opacity: .6; } }
 .hud .kracht { margin-top: 4px; min-height: 1em; text-transform: none; letter-spacing: 0; font-weight: 700; }
 .banner {
   position: absolute; left: 0; right: 0; top: 26%; text-align: center; pointer-events: none;
@@ -182,7 +188,7 @@ p { margin: 0; font-size: 1.05rem; line-height: 1.5; max-width: 26rem; }
 
   <div class="hud" id="hud" hidden>
     <div><div class="getal" id="punten">0</div><div class="label">Punten &middot; <span id="meters">0 m</span></div></div>
-    <div class="midden"><div class="spelnaam">AvansMotor</div><div class="munitieregel"><span class="getal" id="munitie">10</span> <span class="label">torpedo's</span></div><div class="label kracht" id="kracht"></div></div>
+    <div class="midden"><div class="spelnaam">AvansMotor</div><div class="munitieregel"><span class="getal" id="munitie">10</span> <span class="label">torpedo's</span></div><div class="label kracht" id="kracht"></div><div class="veerbalk" id="veerBalk" hidden><span id="veerVul"></span></div></div>
     <div class="rechts"><div class="getal" id="snelheid">0</div><div class="label">km/u</div></div>
   </div>
 
@@ -248,8 +254,8 @@ p { margin: 0; font-size: 1.05rem; line-height: 1.5; max-width: 26rem; }
       <div class="uitleg">
         <p>Elke meter is een punt. Een geraakte gans geeft 25 punten en een torpedo terug.</p>
         <p>Je hebt 3 levens en 10 torpedo's. <strong>Spring</strong> over obstakels en <strong>schiet</strong> ganzen weg. Houd Spring vast om hoger te springen.</p>
-        <p>Pak tegels voor een schild, munitie of een dubbele sprong. Pak of schiet bellen met fruit: 3 keer hetzelfde fruit is een extra leven.</p>
-        <p>Een gans die knijpt, gaat poepen: schiet hem neer of spring over de plas. <strong>Schiet nooit op een Avans praalgans.</strong> Dat kost een leven.</p>
+        <p>Pak tegels voor een schild, munitie of een springveer (dubbele sprong). Pak of schiet bellen met fruit: 3 keer hetzelfde fruit is een extra leven.</p>
+        <p>Een gans die knijpt, gaat poepen: schiet hem neer of spring over de plas. Een Avans praalgans ontwijkt je, maar <strong>schiet er nooit op</strong>: dat kost een leven.</p>
       </div>
       <p class="record" id="recordStart" hidden></p>
       <button class="knop" id="startKnop" type="button">Start de motor</button>
@@ -453,6 +459,23 @@ p { margin: 0; font-size: 1.05rem; line-height: 1.5; max-width: 26rem; }
     osc.connect(f); f.connect(g); osc.start(t0); vib.start(t0); osc.stop(t0 + d + 0.05); vib.stop(t0 + d + 0.05);
   }
 
+  function boing(vanHz, naarHz) {
+    if (!ac) return;
+    const t0 = ac.currentTime, d = 0.35;
+    const osc = ac.createOscillator(); osc.type = 'sine';
+    osc.frequency.setValueAtTime(vanHz, t0); osc.frequency.exponentialRampToValueAtTime(naarHz, t0 + d);
+    const vib = ac.createOscillator(); vib.frequency.value = 18; const vd = ac.createGain(); vd.gain.value = vanHz * 0.08;
+    vib.connect(vd); vd.connect(osc.frequency);
+    const g = gainNaar(0.35, effectGain); g.gain.setValueAtTime(0.35, t0); g.gain.exponentialRampToValueAtTime(0.001, t0 + d);
+    osc.connect(g); osc.start(t0); vib.start(t0); osc.stop(t0 + d + 0.05); vib.stop(t0 + d + 0.05);
+  }
+
+  function gak() {
+    if (!ac) return;
+    toon('square', 760, 1150, 0.09, 0.2, 1500);
+    setTimeout(() => toon('square', 1150, 680, 0.12, 0.2, 1500), 90);
+  }
+
   function klik() {
     if (!ac) return;
     toon('square', 1400, 900, 0.035, 0.15);
@@ -519,7 +542,8 @@ p { margin: 0; font-size: 1.05rem; line-height: 1.5; max-width: 26rem; }
   let tijd, afgelegd, snelheid, motor, obstakels, decor, deeltjes, volgende, ingedrukt, buffer, schok, wielhoek, crashTijd;
   let eenden, kogels, eendTimer, herlaad, flits, geschoten, ontploffingen;
   let munitie, leegTijd, kippen, kipTimer;
-  let klodders, plassen, spetter, glad;
+  let klodders, plassen, spetter, glad, veerFlits = 0;
+  const VEER_DUUR = 10;
   const POEP_VAL = 2.5;   // valversnelling van een klodder, in U per s²
   const START_MUNITIE = 10, MAX_MUNITIE = 20;
   let ver, voor, verVolg, voorVolg, vorigeSoort;
@@ -536,7 +560,7 @@ p { margin: 0; font-size: 1.05rem; line-height: 1.5; max-width: 26rem; }
     eenden = []; kogels = []; eendTimer = 3.5; herlaad = 0; flits = 0; geschoten = 0; ontploffingen = [];
     bonus = 0; reeks = 0; krachten = []; krachtTimer = 5;
     munitie = START_MUNITIE; leegTijd = 0; kippen = []; kipTimer = 9;
-    klodders = []; plassen = []; spetter = null; glad = 0; schild = false; snelTijd = 0; dubbelTijd = 0;
+    klodders = []; plassen = []; spetter = null; glad = 0; schild = false; snelTijd = 0; dubbelTijd = 0; veerFlits = 0;
     luchtSprong = false; onkwetsbaar = 0; teksten = []; fase = 0; bannerTijd = 0; levens = 3;
     hapjes = []; hapjeTimer = 6; mand = { kers: 0, appel: 0, mandarijn: 0 }; volgendeExtra = 400;
     for (let x = W * 0.2; x < W * 2.2; x += U * (0.55 + Math.random() * 0.5)) decor.push(maakDecor(x));
@@ -634,7 +658,7 @@ p { margin: 0; font-size: 1.05rem; line-height: 1.5; max-width: 26rem; }
     if (toestand !== 'rijden') return;
     ingedrukt = true;
     if (motor.opGrond) spring();
-    else if (dubbelTijd > 0 && !luchtSprong && !motor.inGat) { luchtSprong = true; spring(); }
+    else if (dubbelTijd > 0 && !luchtSprong && !motor.inGat) { luchtSprong = true; spring(); boing(300, 700); }
     else buffer = 0.12;
   }
   function los() { ingedrukt = false; }
@@ -773,7 +797,8 @@ p { margin: 0; font-size: 1.05rem; line-height: 1.5; max-width: 26rem; }
 
     // Krachten aflopen
     if (snelTijd > 0) snelTijd -= dt;
-    if (dubbelTijd > 0) dubbelTijd -= dt;
+    if (dubbelTijd > 0) { dubbelTijd -= dt; if (dubbelTijd <= 0) { dubbelTijd = 0; veerOp(); } }
+    if (veerFlits > 0) veerFlits -= dt;
     if (onkwetsbaar > 0) onkwetsbaar -= dt;
 
     // Motor
@@ -913,7 +938,26 @@ p { margin: 0; font-size: 1.05rem; line-height: 1.5; max-width: 26rem; }
       kippen.push({ x: W + U * 0.15, basis, y: basis, v: U * (0.08 + Math.random() * 0.08), fase: Math.random() * 6, weg: false });
       kipTimer = 6 + Math.random() * 6;
     }
-    for (const c of kippen) { c.x -= dx + c.v * dt; c.fase += dt * 10; c.y = c.basis + Math.sin(c.fase * 0.3) * U * 0.014; }
+    // Praalganzen zijn te trots om aangereden te worden: komt de motor dichtbij, dan fladderen ze verontwaardigd opzij.
+    // Zit de gans boven de motor, dan blijft hij erboven; zit hij eronder, dan blijft hij eronder (zolang dat kan).
+    for (const c of kippen) {
+      c.x -= dx + c.v * dt;
+      const bx = W * 0.22, midden = motor.y - U * 0.05;
+      const dichtbij = c.x > bx - U * 0.14 && c.x < bx + U * 0.32;
+      if (!dichtbij) c.richting = null;
+      else if (!c.richting && Math.abs(c.basis - midden) < U * 0.17) {
+        c.richting = (c.basis > midden && midden + U * 0.15 < G - U * 0.02) ? 'omlaag' : 'omhoog';
+        if (!c.geschrokken) { c.geschrokken = true; gak(); tekst(c.x, c.basis - U * 0.07, 'Gak!'); }
+      }
+      if (c.richting === 'omlaag' && midden + U * 0.15 >= G - U * 0.02) c.richting = 'omhoog';   // motor landt: dan toch omhoog
+      let doelY = c.basis;
+      if (c.richting === 'omhoog') doelY = Math.max(U * 0.02, Math.min(c.basis, midden - U * 0.17));
+      if (c.richting === 'omlaag') doelY = Math.max(c.basis, midden + U * 0.15);
+      c.paniek = !!c.richting;
+      c.dy = (c.dy || 0) + (doelY - c.basis - (c.dy || 0)) * Math.min(1, dt * 22);
+      c.fase += dt * (c.paniek ? 28 : 10);
+      c.y = c.basis + c.dy + Math.sin(c.fase * 0.3) * U * (c.paniek ? 0.004 : 0.014);
+    }
     let kipGeraakt = false;
 
     // Kogel raakt praalkip, eend, fruitbel of obstakel
@@ -990,7 +1034,7 @@ p { margin: 0; font-size: 1.05rem; line-height: 1.5; max-width: 26rem; }
         k.weg = true;
         if (k.soort === 'schild') { schild = true; tekst(k.x, k.y - U * 0.05, 'Schild'); }
         if (k.soort === 'munitie') { munitie = Math.min(MAX_MUNITIE, munitie + 6); tekst(k.x, k.y - U * 0.05, "+6 torpedo's"); }
-        if (k.soort === 'dubbel') { dubbelTijd = 10; tekst(k.x, k.y - U * 0.05, 'Dubbele sprong'); }
+        if (k.soort === 'dubbel') { dubbelTijd = VEER_DUUR; tekst(k.x, k.y - U * 0.05, 'Springveer!'); boing(220, 880); }
       }
     }
 
@@ -1003,7 +1047,10 @@ p { margin: 0; font-size: 1.05rem; line-height: 1.5; max-width: 26rem; }
     motorToeren();
     const actief = [];
     if (schild) actief.push('Schild');
-    if (dubbelTijd > 0) actief.push(`Dubbele sprong ${Math.ceil(dubbelTijd)} s`);
+    if (dubbelTijd > 0) actief.push('Springveer');
+    const balk = $('veerBalk');
+    balk.hidden = !(dubbelTijd > 0);
+    if (dubbelTijd > 0) { $('veerVul').style.transform = `scaleX(${dubbelTijd / VEER_DUUR})`; balk.classList.toggle('knipper', dubbelTijd < 2); }
     $('kracht').textContent = actief.join(' \u00b7 ');
   }
 
@@ -1056,6 +1103,12 @@ p { margin: 0; font-size: 1.05rem; line-height: 1.5; max-width: 26rem; }
     }
   }
 
+  function veerOp() {
+    veerFlits = 0.45;
+    tekst(W * 0.22, motor.y - U * 0.17, 'Dubbele sprong voorbij');
+    boing(700, 150);
+  }
+
   function levenKwijt() {
     levens--; onkwetsbaar = 1.5; inslag(1);
     tekst(W * 0.22, motor.y - U * 0.15, levens === 1 ? 'Laatste leven!' : `Nog ${levens} levens`);
@@ -1078,7 +1131,7 @@ p { margin: 0; font-size: 1.05rem; line-height: 1.5; max-width: 26rem; }
     toestand = 'gebotst'; crashTijd = 0; ingedrukt = false;
     inslag(1.2); stopMotor();
     if (ac) muziekGain.gain.setTargetAtTime(0.22, ac.currentTime, 0.4);
-    $('bediening').hidden = true; banner.hidden = true;
+    $('bediening').hidden = true; banner.hidden = true; $('veerBalk').hidden = true;
     document.querySelectorAll('.spelknop').forEach(k => k.classList.remove('actief'));
     if (oorzaak === 'gat') { motor.valt = true; motor.opGrond = false; motor.draai = -3; }
     else { motor.vy = -0.7 * U; motor.opGrond = false; motor.draai = -9; }
@@ -1222,6 +1275,8 @@ p { margin: 0; font-size: 1.05rem; line-height: 1.5; max-width: 26rem; }
     // Motor (knippert even na een afgeweerde botsing)
     if (motor) {
       if (onkwetsbaar > 0 && Math.floor(onkwetsbaar * 12) % 2) ctx.globalAlpha = 0.45;
+      // Springveer onder de motor zolang de dubbele sprong actief is; knippert de laatste 2 seconden
+      if (dubbelTijd > 0 && toestand === 'rijden' && !(dubbelTijd < 2 && Math.floor(dubbelTijd * 8) % 2 === 0)) tekenVeer(W * 0.22, motor.y, motor.hoek);
       ctx.save();
       if (motor.valt || motor.inGat) { ctx.beginPath(); ctx.rect(-50, -50, W + 100, RB + 50); ctx.clip(); }
       tekenMotor(W * 0.22, motor.y, motor.hoek, P);
@@ -1262,6 +1317,19 @@ p { margin: 0; font-size: 1.05rem; line-height: 1.5; max-width: 26rem; }
           if (d < mand[f]) ctx.fill(); else ctx.stroke();
         }
       });
+    }
+
+    // Flits als de springveer op is: blauwe ring rond de motor en een blauwe rand om het beeld
+    if (veerFlits > 0 && motor) {
+      const f = 1 - veerFlits / 0.45;
+      ctx.strokeStyle = KLEUR.blauw;
+      ctx.globalAlpha = 1 - f;
+      ctx.lineWidth = Math.max(4, U * 0.012) * (1 - f * 0.6);
+      ctx.beginPath(); ctx.arc(W * 0.22, motor.y - U * 0.06, U * (0.06 + f * 0.22), 0, Math.PI * 2); ctx.stroke();
+      ctx.globalAlpha = (1 - f) * 0.6;
+      ctx.lineWidth = Math.max(10, U * 0.03);
+      ctx.strokeRect(0, 0, W, H);
+      ctx.globalAlpha = 1;
     }
 
     // Voorgrond: vangrail, hek, bosjes, borden
@@ -1605,11 +1673,12 @@ p { margin: 0; font-size: 1.05rem; line-height: 1.5; max-width: 26rem; }
         ctx.lineTo(cx - s * 1.0, cy + o + s * 0.28); ctx.closePath(); ctx.fill();
       }
     } else {
-      for (const o of [-s * 0.55, s * 0.45]) {
-        ctx.beginPath();
-        ctx.moveTo(cx, cy + o - s * 0.6); ctx.lineTo(cx + s * 0.9, cy + o + s * 0.35); ctx.lineTo(cx - s * 0.9, cy + o + s * 0.35);
-        ctx.closePath(); ctx.fill();
-      }
+      // springveer
+      ctx.lineWidth = s * 0.28; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(cx, cy - s * 1.0);
+      for (let i = 1; i <= 5; i++) ctx.lineTo(cx + (i % 2 ? s * 0.7 : -s * 0.7), cy - s * 1.0 + s * 2.0 * i / 6);
+      ctx.lineTo(cx, cy + s * 1.0); ctx.stroke();
+      ctx.lineCap = 'butt';
     }
   }
 
@@ -1731,6 +1800,21 @@ p { margin: 0; font-size: 1.05rem; line-height: 1.5; max-width: 26rem; }
     ctx.closePath(); ctx.fill(); ctx.stroke();
     // Dun detaillijntje op de buik
     ctx.beginPath(); ctx.moveTo(-u * 0.012, u * 0.01); ctx.quadraticCurveTo(u * 0.004, u * 0.017, u * 0.02, u * 0.01); ctx.stroke();
+    ctx.restore();
+  }
+
+  function tekenVeer(bx, by, hoekR) {
+    const u = U;
+    // Op de grond ingedrukt tussen romp en weg, in de lucht uitgerekt en verend
+    const top = -u * 0.03;
+    const bodem = motor.opGrond ? -u * 0.003 : u * 0.03 + Math.sin((tijd || 0) * 25) * u * 0.006;
+    const n = 7, b = u * 0.013;
+    ctx.save(); ctx.translate(bx, by); ctx.rotate(hoekR);
+    ctx.strokeStyle = KLEUR.blauw; ctx.lineWidth = Math.max(2, u * 0.005); ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(0, top);
+    for (let i = 1; i <= n; i++) ctx.lineTo(i % 2 ? b : -b, top + (bodem - top) * i / (n + 1));
+    ctx.lineTo(0, bodem); ctx.stroke();
+    ctx.fillStyle = KLEUR.navy; ctx.fillRect(-u * 0.018, bodem - u * 0.002, u * 0.036, u * 0.006);
     ctx.restore();
   }
 
